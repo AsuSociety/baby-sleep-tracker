@@ -35,6 +35,7 @@ export function useSleepData() {
         .order("wake_time", { ascending: true });
 
       if (error) {
+        console.error("Supabase load error:", error);
         setError("שגיאה בטעינת הנתונים");
       } else if (data) {
         const mapped: AllData = {};
@@ -82,6 +83,7 @@ export function useSleepData() {
           if (!day) return prev;
           return { ...prev, [date]: { ...day, entries: day.entries.filter((e) => e.id !== id) } };
         });
+        console.error("Supabase insert error:", error);
         setError("שגיאה בשמירה");
       }
     },
@@ -107,7 +109,10 @@ export function useSleepData() {
       if (patch.notes !== undefined) dbPatch.notes = patch.notes ?? null;
 
       const { error } = await supabase.from("sleep_entries").update(dbPatch).eq("id", id);
-      if (error) setError("שגיאה בעדכון");
+      if (error) {
+        console.error("Supabase update error:", error);
+        setError("שגיאה בעדכון");
+      }
     },
     []
   );
@@ -121,7 +126,10 @@ export function useSleepData() {
     });
 
     const { error } = await supabase.from("sleep_entries").delete().eq("id", id);
-    if (error) setError("שגיאה במחיקה");
+    if (error) {
+      console.error("Supabase delete error:", error);
+      setError("שגיאה במחיקה");
+    }
   }, []);
 
   return { allData, loading, error, getDayData, addEntry, updateEntry, deleteEntry };
