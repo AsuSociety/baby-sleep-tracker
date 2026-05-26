@@ -12,3 +12,13 @@ export interface DayData {
 }
 
 export type AllData = Record<string, DayData>;
+
+export type EventType = 'wake' | 'sleep_start' | 'sleep_end' | 'tired_sign' | 'note' | 'feeding' | 'other';
+
+export interface Event {
+  id: string;
+  occurred_at: string; // ISO 8601 timestamp
+  type: EventType;
+  detail?: string;
+  source?: string;
+}
