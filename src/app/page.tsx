@@ -2,8 +2,6 @@
 
 import Link from "next/link";
 import { useSleepData, formatHebrewDate, getTotalSleepMinutes } from "@/hooks/useSleepData";
-import { useTimeline } from "@/hooks/useTimeline";
-import { Timeline } from "@/components/Timeline";
 import { SleepEntry } from "@/types";
 
 
@@ -52,7 +50,8 @@ function DaySummary({ entries }: { entries: SleepEntry[] }) {
 
 
 export default function HomePage() {
-  const { events, loading, error } = useTimeline();
+  const { getDayData, loading, error } = useSleepData();
+  const days = getDaysFromYesterdayForward(14);
 
   if (loading) {
     return (
@@ -78,12 +77,46 @@ export default function HomePage() {
       <header className="bg-indigo-600 text-white px-4 py-5 shadow-lg">
         <div className="max-w-md mx-auto">
           <h1 className="text-2xl font-bold text-center">🌙 שינה של התינוק</h1>
-          <p className="text-indigo-200 text-center text-sm mt-1">אתמול בבוקר עד עכשיו</p>
+          <p className="text-indigo-200 text-center text-sm mt-1">לחצי על יום כדי להוסיף אירועים</p>
         </div>
       </header>
 
-      <main className="max-w-md mx-auto px-4 py-4 pb-8">
-        <Timeline events={events} />
+      <main className="max-w-md mx-auto px-4 py-4 space-y-3 pb-8">
+        {days.map((date) => {
+          const dayData = getDayData(date);
+          const isToday = date === new Date().toISOString().slice(0, 10);
+          return (
+            <Link
+              key={date}
+              href={`/day/${date}`}
+              className={`block rounded-2xl p-4 shadow-sm border transition-all active:opacity-80 ${
+                isToday
+                  ? "bg-white border-indigo-300 shadow-indigo-100 shadow-md"
+                  : "bg-white border-slate-100"
+              }`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  {isToday && (
+                    <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full font-medium">
+                      היום
+                    </span>
+                  )}
+                  <span className={`font-semibold ${isToday ? "text-indigo-700" : "text-slate-700"}`}>
+                    {isToday ? "היום" : formatHebrewDate(date)}
+                  </span>
+                </div>
+                <span className="text-slate-400 text-sm">
+                  {new Date(date + "T12:00:00").toLocaleDateString("he-IL", {
+                    day: "numeric",
+                    month: "numeric",
+                  })}
+                </span>
+              </div>
+              <DaySummary entries={dayData.entries} />
+            </Link>
+          );
+        })}
       </main>
     </div>
   );

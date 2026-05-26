@@ -22,11 +22,9 @@ function getTimeOfDay(date: Date): string {
 function formatEventType(type: Event["type"]): string {
   const labels: Record<Event["type"], string> = {
     wake: "קם",
-    sleep_start: "התחלת שינה",
-    sleep_end: "סיום שינה",
+    sleep_start: "הלך לישון",
     tired_sign: "סימן עייפות",
     note: "הערה",
-    feeding: "הנקה",
     other: "אחר",
   };
   return labels[type] || type;
@@ -34,9 +32,10 @@ function formatEventType(type: Event["type"]): string {
 
 interface TimelineProps {
   events: Event[];
+  onDeleteEvent?: (id: string) => Promise<void>;
 }
 
-export function Timeline({ events }: TimelineProps) {
+export function Timeline({ events, onDeleteEvent }: TimelineProps) {
   if (events.length === 0) {
     return (
       <div className="text-center text-slate-400 py-8">
@@ -76,6 +75,15 @@ export function Timeline({ events }: TimelineProps) {
                       <span className="font-medium">{formatEventType(event.type)}</span>
                       {event.detail && <span className="text-slate-600"> — {event.detail}</span>}
                     </span>
+                    {onDeleteEvent && (
+                      <button
+                        type="button"
+                        onClick={() => onDeleteEvent(event.id)}
+                        className="text-xs text-red-600 hover:text-red-800 transition"
+                      >
+                        מחק
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>

@@ -2,119 +2,59 @@
 
 import { useState, use } from "react";
 import Link from "next/link";
-import { useSleepData, formatHebrewDate, calcAwakeDuration } from "@/hooks/useSleepData";
-import SleepEntryForm from "@/components/SleepEntryForm";
-import { SleepEntry } from "@/types";
+import { formatHebrewDate } from "@/hooks/useSleepData";
+import { useTimeline } from "@/hooks/useTimeline";
+import { EventForm } from "@/components/EventForm";
+import { Timeline } from "@/components/Timeline";
+import { Event } from "@/types";
 
 interface PageProps {
   params: Promise<{ date: string }>;
 }
 
-function EntryCard({
-  entry,
-  onEdit,
-  onDelete,
-}: {
-  entry: SleepEntry;
-  onEdit: () => void;
-  onDelete: () => void;
-}) {
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const duration = calcAwakeDuration(entry.wakeTime, entry.sleepTime);
+function formatDuration(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  if (hours === 0) return `${mins} דק'`;
+  if (mins === 0) return `${hours} שע'`;
+  return `${hours} שע' ${mins} דק'`;
+}
 
-  return (
-    <div
-      className={`rounded-2xl p-4 border ${
-        entry.isNightSleep
-          ? "bg-indigo-50 border-indigo-200"
-          : "bg-white border-slate-100"
-      } shadow-sm`}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-2">
-            {entry.isNightSleep ? (
-              <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full font-medium">
-                🌙 שנת לילה
-              </span>
-            ) : (
-              <span className="bg-sky-100 text-sky-700 text-xs px-2 py-0.5 rounded-full font-medium">
-                ☀️ שנ&quot;צ
-              </span>
-            )}
-          </div>
+function summarizeEvents(events: Event[]) {
+  let totalSleep = 0;
+  let totalAwake = 0;
+  let lastSleepStart: Date | null = null;
+  let lastWake: Date | null = null;
 
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="bg-green-50 rounded-xl p-2">
-              <div className="text-xs text-green-600 font-medium mb-0.5">קם</div>
-              <div className="text-lg font-bold text-green-700">{entry.wakeTime}</div>
-            </div>
-            <div className="bg-amber-50 rounded-xl p-2">
-              <div className="text-xs text-amber-600 font-medium mb-0.5">ער</div>
-              <div className="text-sm font-bold text-amber-700 leading-tight">{duration}</div>
-            </div>
-            <div className="bg-blue-50 rounded-xl p-2">
-              <div className="text-xs text-blue-600 font-medium mb-0.5">נרדם</div>
-              <div className="text-lg font-bold text-blue-700">{entry.sleepTime}</div>
-            </div>
-          </div>
+  const sorted = [...events].sort((a, b) => new Date(a.occurred_at).getTime() - new Date(b.occurred_at).getTime());
 
-          {entry.notes && (
-            <p className="mt-2 text-sm text-slate-500 bg-slate-50 rounded-lg px-3 py-1.5">
-              📝 {entry.notes}
-            </p>
-          )}
-        </div>
-      </div>
+  sorted.forEach((event) => {
+    const eventDate = new Date(event.occurred_at);
+    if (event.type === "sleep_start") {
+      if (lastWake) {
+        totalAwake += Math.max(0, Math.floor((eventDate.getTime() - lastWake.getTime()) / 60000));
+      }
+      lastSleepStart = eventDate;
+    }
+    if (event.type === "wake") {
+      if (lastSleepStart) {
+        totalSleep += Math.max(0, Math.floor((eventDate.getTime() - lastSleepStart.getTime()) / 60000));
+        lastSleepStart = null;
+      }
+      lastWake = eventDate;
+    }
+  });
 
-      {/* Actions */}
-      <div className="flex gap-2 mt-3">
-        <button
-          onClick={onEdit}
-          className="flex-1 text-sm text-slate-500 bg-slate-50 rounded-xl py-2 font-medium active:opacity-70"
-        >
-          ✏️ ערוך
-        </button>
-        {confirmDelete ? (
-          <div className="flex gap-2 flex-1">
-            <button
-              onClick={() => setConfirmDelete(false)}
-              className="flex-1 text-sm text-slate-500 bg-slate-50 rounded-xl py-2 font-medium"
-            >
-              לא
-            </button>
-            <button
-              onClick={onDelete}
-              className="flex-1 text-sm text-white bg-red-500 rounded-xl py-2 font-medium active:opacity-70"
-            >
-              מחק
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={() => setConfirmDelete(true)}
-            className="flex-1 text-sm text-red-400 bg-red-50 rounded-xl py-2 font-medium active:opacity-70"
-          >
-            🗑 מחק
-          </button>
-        )}
-      </div>
-    </div>
-  );
+  return { totalSleep, totalAwake };
 }
 
 export default function DayPage({ params }: PageProps) {
   const { date } = use(params);
-  const { getDayData, addEntry, updateEntry, deleteEntry, loading, error } = useSleepData();
-  const [showForm, setShowForm] = useState(false);
-  const [editingEntry, setEditingEntry] = useState<SleepEntry | null>(null);
+  const { events, loading, error, addEvent, deleteEvent } = useTimeline();
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const dayData = getDayData(date);
-  const sortedEntries = [...dayData.entries].sort((a, b) =>
-    a.wakeTime.localeCompare(b.wakeTime)
-  );
-
-  const isValidDate = /^\d{4}-\d{2}-\d{2}$/.test(date);
+  const parsedDate = new Date(date);
+  const isValidDate = !Number.isNaN(parsedDate.getTime());
   if (!isValidDate) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -122,6 +62,20 @@ export default function DayPage({ params }: PageProps) {
       </div>
     );
   }
+
+  const localDateKey = (iso: string) => {
+    const eventDate = new Date(iso);
+    const y = eventDate.getFullYear();
+    const m = String(eventDate.getMonth() + 1).padStart(2, "0");
+    const d = String(eventDate.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
+
+  const dayEvents = events
+    .filter((event) => localDateKey(event.occurred_at) === date)
+    .sort((a, b) => new Date(a.occurred_at).getTime() - new Date(b.occurred_at).getTime());
+
+  const summary = summarizeEvents(dayEvents);
 
   if (loading) {
     return (
@@ -141,9 +95,26 @@ export default function DayPage({ params }: PageProps) {
     );
   }
 
+  const handleAddEvent = async (event: Parameters<typeof addEvent>[0]) => {
+    try {
+      await addEvent(event);
+      setSubmitError(null);
+    } catch (err) {
+      setSubmitError("שגיאה בהוספת אירוע");
+    }
+  };
+
+  const handleDeleteEvent = async (id: string) => {
+    try {
+      await deleteEvent(id);
+      setSubmitError(null);
+    } catch (err) {
+      setSubmitError("שגיאה במחיקת אירוע");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-slate-50">
-      {/* Header */}
       <header className="bg-indigo-600 text-white px-4 py-4 shadow-lg">
         <div className="max-w-md mx-auto flex items-center gap-3">
           <Link
@@ -164,62 +135,41 @@ export default function DayPage({ params }: PageProps) {
           </div>
           <div className="w-9" />
         </div>
+        <div className="max-w-md mx-auto mt-3 text-center text-sm text-indigo-100">
+          <Link href="/" className="underline">
+            חזרה לרשימת הימים
+          </Link>
+        </div>
       </header>
 
       <main className="max-w-md mx-auto px-4 py-4 pb-32 space-y-3">
-        {sortedEntries.length === 0 ? (
+        <EventForm onAddEvent={handleAddEvent} dateContext={date} />
+
+        {submitError && (
+          <div className="bg-red-50 text-red-700 rounded-xl p-3 text-sm">{submitError}</div>
+        )}
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-2xl bg-white p-4 shadow-sm border border-slate-200">
+            <div className="text-slate-500 text-xs mb-2">זמן שינה</div>
+            <div className="text-xl font-semibold text-slate-900">{formatDuration(summary.totalSleep)}</div>
+          </div>
+          <div className="rounded-2xl bg-white p-4 shadow-sm border border-slate-200">
+            <div className="text-slate-500 text-xs mb-2">זמן ער</div>
+            <div className="text-xl font-semibold text-slate-900">{formatDuration(summary.totalAwake)}</div>
+          </div>
+        </div>
+
+        {dayEvents.length === 0 ? (
           <div className="text-center py-12">
             <div className="text-5xl mb-4">😴</div>
-            <p className="text-slate-500 text-lg font-medium">אין רישומים ליום זה</p>
-            <p className="text-slate-400 text-sm mt-1">לחצי על הכפתור למטה להוסיף</p>
+            <p className="text-slate-500 text-lg font-medium">אין אירועים ליום זה</p>
+            <p className="text-slate-400 text-sm mt-1">הוסיפי אירועים כדי לראות סדר ומשך שינה</p>
           </div>
         ) : (
-          sortedEntries.map((entry) => (
-            <EntryCard
-              key={entry.id}
-              entry={entry}
-              onEdit={() => {
-                setEditingEntry(entry);
-                setShowForm(true);
-              }}
-              onDelete={() => deleteEntry(date, entry.id)}
-            />
-          ))
+          <Timeline events={dayEvents} onDeleteEvent={handleDeleteEvent} />
         )}
       </main>
-
-      {/* Add button */}
-      <div className="fixed bottom-8 left-0 right-0 flex justify-center px-4">
-        <button
-          onClick={() => {
-            setEditingEntry(null);
-            setShowForm(true);
-          }}
-          className="bg-indigo-600 text-white rounded-2xl px-8 py-4 text-base font-bold shadow-xl shadow-indigo-300 active:opacity-80 flex items-center gap-2"
-        >
-          <span className="text-xl">+</span> הוסיפי רישום
-        </button>
-      </div>
-
-      {/* Form modal */}
-      {showForm && (
-        <SleepEntryForm
-          initial={editingEntry ?? undefined}
-          onCancel={() => {
-            setShowForm(false);
-            setEditingEntry(null);
-          }}
-          onSave={(entry) => {
-            if (editingEntry) {
-              updateEntry(date, editingEntry.id, entry);
-            } else {
-              addEntry(date, entry);
-            }
-            setShowForm(false);
-            setEditingEntry(null);
-          }}
-        />
-      )}
     </div>
   );
 }
