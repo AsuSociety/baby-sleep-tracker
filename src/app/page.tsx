@@ -4,11 +4,14 @@ import Link from "next/link";
 import { useSleepData, formatHebrewDate, getTotalSleepMinutes } from "@/hooks/useSleepData";
 import { SleepEntry } from "@/types";
 
-function getPastDays(count: number): string[] {
+function getDaysFromYesterdayForward(count: number): string[] {
   const days: string[] = [];
+  const start = new Date();
+  start.setDate(start.getDate() - 1); // yesterday
+  // push yesterday, then the next days forward
   for (let i = 0; i < count; i++) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
     days.push(d.toISOString().slice(0, 10));
   }
   return days;
@@ -45,7 +48,7 @@ function DaySummary({ entries }: { entries: SleepEntry[] }) {
 
 export default function HomePage() {
   const { getDayData, loading, error } = useSleepData();
-  const days = getPastDays(14);
+  const days = getDaysFromYesterdayForward(14);
 
   if (loading) {
     return (
@@ -71,7 +74,7 @@ export default function HomePage() {
       <header className="bg-indigo-600 text-white px-4 py-5 shadow-lg">
         <div className="max-w-md mx-auto">
           <h1 className="text-2xl font-bold text-center">🌙 שינה של התינוק</h1>
-          <p className="text-indigo-200 text-center text-sm mt-1">לחצי על יום כדי להוסיף רישומים</p>
+          <p className="text-indigo-200 text-center text-sm mt-1">טווח התצוגה: אתמול ועד שבועיים קדימה — לחצי על יום כדי להוסיף רישומים</p>
         </div>
       </header>
 
